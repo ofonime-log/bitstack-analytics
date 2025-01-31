@@ -345,3 +345,70 @@
         (ok proposal-id)
     )
 )
+
+;; desc Casts vote on an active proposal
+;; param proposal-id (uint) - ID of proposal to vote on
+;; param vote-for (bool) - True for yes, false for no
+;; returns (response bool uint)
+(define-public (vote-on-proposal (proposal-id uint) (vote-for bool))
+    (let
+        (
+            (proposal (unwrap! (map-get? Proposals { proposal-id: proposal-id }) ERR-INVALID-PROTOCOL))
+            (user-position (unwrap! (map-get? UserPositions tx-sender) ERR-NOT-AUTHORIZED))
+            (voting-power (get voting-power user-position))
+            (max-proposal-id (var-get proposal-count))
+        )
+        (asserts! (< block-height (get end-block proposal)) ERR-NOT-AUTHORIZED)
+        (asserts! (and (> proposal-id u0) (<= proposal-id max-proposal-id)) ERR-INVALID-PROTOCOL)
+        
+        (map-set Proposals { proposal-id: proposal-id }
+            (merge proposal
+                {
+                    votes-for: (if vote-for (+ (get votes-for proposal) voting-power) (get votes-for proposal)),
+                    votes-against: (if vote-for (get votes-against proposal) (+ (get votes-against proposal) voting-power))
+                }
+            )
+        )
+        (ok true)
+    )
+)
+
+;; desc Pauses contract operations
+;; returns (response bool uint)
+(define-public (pause-contract)
+    (begin
+        (asserts! (is-eq tx-sender CONTRACT-OWNER) ERR-NOT-AUTHORIZED)
+        (var-set contract-paused true)
+        (ok true)
+    )
+)
+
+;; desc Resumes contract operations
+;; returns (response bool uint)
+(define-public (resume-contract)
+    (begin
+        (asserts! (is-eq tx-sender CONTRACT-OWNER) ERR-NOT-AUTHORIZED)
+        (var-set contract-paused false)
+        (ok true)
+    )
+)
+
+;; Read-Only Functions
+
+;; desc Returns contract owner address
+;; returns (response principal uint)
+(define-read-only (get-contract-owner)
+    (ok CONTRACT-OWNER)
+)
+
+;; desc Returns current STX pool balance
+;; returns (response uint uint)
+(define-read-only (get-stx-pool)
+    (ok (var-get stx-pool))
+)
+
+;; desc Returns total number of proposals
+;; returns (response uint uint)
+(define-read-only (get-proposal-count)
+    (ok (var-get proposal-count))
+)
